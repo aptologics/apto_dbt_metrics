@@ -1,7 +1,11 @@
-{% macro calculate(metric_list, grain, dimensions=[], secondary_calculations=[], start_date=None, end_date=None, where=None) %}
+{% macro calculate(metric_names, grain, dimensions=[], secondary_calculations=[], start_date=None, end_date=None, where=None) %}
+{% set metric_list=[] %}
+    {% for dim in metric_names %}
+        {%- do metric_list.append(metric(dim)) -%}
+    {%- endfor %}
+
     {{ return(adapter.dispatch('calculate', 'metrics')(metric_list, grain, dimensions, secondary_calculations, start_date, end_date, where)) }}
 {% endmacro %}
-
 
 {% macro default__calculate(metric_list, grain, dimensions=[], secondary_calculations=[], start_date=None, end_date=None, where=None) %}
     {#- Need this here, since the actual ref is nested within loops/conditions: -#}
