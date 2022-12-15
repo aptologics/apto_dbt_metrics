@@ -76,39 +76,31 @@ up the composite metric. -#}
     }}
 
 {%- endfor -%}
-
-{%- if metric_tree["full_set"] | length > 1 -%}
-
-    {{ metrics.gen_joined_metrics_cte(
-        metric_tree=metric_tree,
-        grain=grain, 
-        dimensions=non_calendar_dimensions, 
-        calendar_dimensions=calendar_dimensions, 
-        secondary_calculations=secondary_calculations, 
-        relevant_periods=relevant_periods,
-        metrics_dictionary=metrics_dictionary ) 
-    }}
-
-{% endif -%}
-
-{{ metrics.gen_secondary_calculation_cte(
-    metric_tree=metric_tree,
-    grain=grain, 
-    dimensions=non_calendar_dimensions, 
-    secondary_calculations=secondary_calculations, 
-    calendar_dimensions=calendar_dimensions,
-    metric_dictionary=metrics_dictionary 
-    ) 
-    }}
-
-{{ metrics.gen_final_cte(
-    metric_tree=metric_tree,
-    grain=grain, 
-    dimensions=non_calendar_dimensions, 
-    calendar_dimensions=calendar_dimensions, 
-    relevant_periods=relevant_periods,
-    secondary_calculations=secondary_calculations,
-    where=where) 
-    }}
+,master_table AS (
+            {% for metric in metric_tree["parent_set"] %}
+            SELECT date_{{grain}}, {% for dimension in dimensions %} {{dimension}} {% if not loop.last %},{% endif %} {% endfor %} FROM {{metric}}__aggregate
+            {% if not loop.last %}UNION{% endif %}
+            {% endfor %}
+        )
+    
+    SELECT 
+        master_table.*,
+    {% for metric in metric_tree["parent_set"] %}
+            {{metric}}__aggregate.{{metric}}
+        {% if not loop.last %},{% endif %}
+    {% endfor %}
+FROM
+	master_table
+	LEFT JOIN
+    {% for metric in metric_tree["parent_set"] %}
+        {{metric}}__aggregate 
+        ON master_table.date_{{grain}} <=> {{metric}}__aggregate.date_{{grain}}
+        AND {% for dimension in dimensions %} master_table.{{dimension}} <=> {{metric}}__aggregate.{{dimension}}
+        {% if not loop.last %}AND{% endif %} 
+        {% endfor %} 
+        {% if not loop.last %}
+        LEFT JOIN 
+        {% endif %}
+    {% endfor %}
 
 {% endmacro %}
